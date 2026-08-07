@@ -18,4 +18,4 @@ Built by Virtuary as a lightweight, no-build showcase for streaming inventory on
 
 ## Live demo
 
-Hosted via GitHub Pages: `https://virtuary.github.io/product-dex-virtuary/ff2026-product-gallery.html`
+Hosted via GitHub Pages: `https://virtuary.github.io/product-dex-virtuary/`
