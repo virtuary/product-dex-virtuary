@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Inventory Gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+
+  /* ============================================================
+     TOKENS
+  ============================================================ */
+  :root{
+    --void:      #07070c;
+    --panel:     #101018;
+    --panel-2:   #16161f;
+    --line:      #24242f;
+    --text:      #eceaf4;
+    --muted:     #82829a;
+    --holo-pink:   #ff6ec7;
+    --holo-gold:   #ffd166;
+    --holo-cyan:   #5eead4;
+    --holo-purple: #a78bfa;
+  }
+
+  *{ box-sizing: border-box; }
+  html, body{ height:100%; }
+  body{
+    margin:0;
+    background: var(--void);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* faint diamond/hex-ish backdrop texture, like a card-binder page */
+  body::before{
+    content:"";
+    position: fixed; inset:0;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,.02) 0 1px, transparent 1px 26px),
+      repeating-linear-gradient(-45deg, rgba(255,255,255,.02) 0 1px, transparent 1px 26px);
+    pointer-events:none;
+    z-index:0;
+  }
+
+  /* holo strip along the very top, like foil edging on a booster box */
+  .foil-strip{
+    height: 6px;
+    width:100%;
+    background: linear-gradient(90deg,
+      var(--holo-gold), var(--holo-pink), var(--holo-purple), var(--holo-cyan), var(--holo-gold));
+    background-size: 300% 100%;
+    animation: driftFoil 12s linear infinite;
+  }
+  @keyframes driftFoil{
+    0%{ background-position: 0% 0; }
+    100%{ background-position: 300% 0; }
+  }
+
+  /* ============================================================
+     HEADER
+  ============================================================ */
+  header{
+    position:relative; z-index:1;
+    padding: 28px clamp(20px, 4vw, 56px) 18px;
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .titleblock .eyebrow{
+    font-family:'Rajdhani', sans-serif;
+    letter-spacing: .35em;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--holo-cyan);
+    text-transform: uppercase;
+    margin: 0 0 6px;
+  }
+  .titleblock h1{
+    font-family:'Orbitron', sans-serif;
+    font-weight: 800;
+    font-size: clamp(22px, 3.4vw, 34px);
+    margin:0;
+    letter-spacing: .02em;
+    background: linear-gradient(90deg, #fff, var(--holo-cyan) 60%, var(--holo-pink));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color: transparent;
+  }
+  .counter{
+    font-family:'Orbitron', sans-serif;
+    font-size: 13px;
+    letter-spacing: .12em;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 8px 14px;
+    border-radius: 999px;
+  }
+  .counter b{ color: var(--text); }
+
+  /* ============================================================
+     MODE TOGGLE — MAIN / HOLO
+  ============================================================ */
+  .mode-row{
+    position: relative; z-index:1;
+    display:flex;
+    gap: 12px;
+    justify-content:center;
+    flex-wrap: wrap;
+    padding: 22px clamp(16px, 4vw, 56px) 4px;
+  }
+  .mode-btn{
+    font-family:'Orbitron', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    padding: 11px 26px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--muted);
+    cursor: pointer;
+    transition: transform .1s ease, border-color .15s ease, color .15s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .mode-btn:hover{ color: var(--text); border-color: #3a3a4a; }
+  .mode-btn:active{ transform: scale(.97); }
+
+  .mode-btn.active[data-mode="main"]{
+    background: #fff;
+    color: #0b0b12;
+    border-color: #fff;
+  }
+  .mode-btn.active[data-mode="holo"]{
+    background: linear-gradient(90deg, var(--holo-pink), var(--holo-purple));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 0 22px rgba(255,110,199,.45);
+  }
+
+  /* ============================================================
+     GALLERY GRID
+  ============================================================ */
+  main{
+    position: relative; z-index:1;
+    padding: 28px clamp(16px, 4vw, 56px) 80px;
+  }
+  .gallery{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: clamp(12px, 1.6vw, 22px);
+  }
+
+  /* every slot: fixed 9:16 ratio, whatever the column width ends up being */
+  .slot{
+    aspect-ratio: 9 / 16;
+    perspective: 900px;
+    position: relative;
+  }
+
+  .card{
+    position:absolute; inset:0;
+    border-radius: 14px;
+    overflow:hidden;
+    cursor: pointer;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 24px rgba(0,0,0,.5);
+  }
+
+  /* grid preview cards: no tilt, no pointer tracking — just a quiet
+     lift on hover so scrolling the gallery feels calm, not shiny */
+  .gallery .card{
+    transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  .gallery .card:hover,
+  .gallery .card:focus-visible{
+    transform: translateY(-4px);
+    box-shadow: 0 18px 34px rgba(0,0,0,.6);
+    border-color: var(--holo-cyan);
+  }
+
+  /* the enlarged/modal card gets the real pointer-driven tilt */
+  .modal .card{
+    --mx:50%; --my:50%; --posx:50%; --posy:50%; --hyp:0; --rx:0deg; --ry:0deg;
+    transform: rotateX(var(--rx)) rotateY(var(--ry));
+    transform-style: preserve-3d;
+    transition: transform .12s ease-out;
+  }
+  .modal .card.is-resting{ transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+
+  .card img{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit: cover;
+    display:block;
+    pointer-events:none;
+  }
+
+  /* placeholder shown if an image path is missing / not found yet */
+  .card .placeholder{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:6px;
+    background: repeating-linear-gradient(135deg, #1a1a24 0 10px, #15151d 10px 20px);
+    color: var(--muted);
+    font-family:'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-align:center;
+    padding: 10px;
+  }
+
+  .tag{
+    position:absolute; left:8px; bottom:8px;
+    z-index:5;
+    font-family:'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: .06em;
+    color: #fff;
+    background: rgba(0,0,0,.55);
+    border: 1px solid rgba(255,255,255,.15);
+    padding: 3px 7px;
+    border-radius: 6px;
+    pointer-events:none;
+  }
+
+  /* ---- lighting layers, modal-only now ----
+     .holo-glare = the plain "light catching a glossy print" highlight,
+     used for BOTH modes (MAIN and HOLO both get tilt + this glare).
+     .holo-shine = the rainbow foil sweep, only ever shown when the
+     card carries the .holo class (i.e. HOLO mode is selected). */
+  .holo-shine, .holo-glare{
+    position:absolute; inset:0;
+    pointer-events:none;
+  }
+  .holo-glare{
+    background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.9), rgba(255,255,255,0) 55%);
+    mix-blend-mode: soft-light;
+    opacity: calc(var(--hyp) * 0.85 + 0.1);
+  }
+  .holo-shine{
+    background: repeating-linear-gradient(
+      115deg,
+      var(--holo-pink) 0%, var(--holo-gold) 12%, var(--holo-cyan) 24%,
+      var(--holo-purple) 36%, var(--holo-pink) 48%
+    );
+    background-size: 300% 300%;
+    background-position: var(--posx) var(--posy);
+    mix-blend-mode: color-dodge;
+    opacity: 0;
+    transition: opacity .15s ease;
+  }
+  .card.holo .holo-shine{
+    opacity: calc(var(--hyp) * 0.8 + 0.04);
+  }
+
+  /* rim light border, modal only, shows while actively tilting */
+  .modal .card::after{
+    content:"";
+    position:absolute; inset:0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255, calc(var(--hyp) * .5));
+    pointer-events:none;
+  }
+
+  /* ============================================================
+     MODAL / CLOSEUP
+  ============================================================ */
+  .modal{
+    position: fixed; inset:0;
+    z-index: 50;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    background: rgba(4,4,8,.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    padding: 24px;
+  }
+  .modal.open{ display:flex; }
+
+  .modal-stage{
+    position:relative;
+    perspective: 1400px;
+    height: min(84vh, 920px);
+    aspect-ratio: 9 / 16;
+    max-width: 92vw;
+  }
+
+  .modal .card{
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 30px 90px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04);
+    cursor: default;
+  }
+
+  .modal-controls{
+    position:absolute; top:-52px; right:0;
+    display:flex; gap:10px;
+  }
+  .modal-tag{
+    position:absolute; top:-52px; left:0;
+    font-family:'Orbitron', sans-serif;
+    font-size: 13px; letter-spacing:.1em;
+    color: var(--muted);
+  }
+  .modal-tag b{ color: var(--text); }
+
+  .icon-btn{
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--text);
+    font-family:'Orbitron', sans-serif;
+    font-size: 16px;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition: border-color .15s ease, color .15s ease, transform .1s ease;
+  }
+  .icon-btn:hover{ border-color: var(--holo-cyan); color: var(--holo-cyan); }
+  .icon-btn:active{ transform: scale(.94); }
+
+  .nav-arrow{
+    position:absolute; top:50%; translate: 0 -50%;
+    width: 46px; height: 46px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(16,16,24,.8);
+    color: var(--text);
+    font-size: 20px;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition: border-color .15s ease, color .15s ease;
+  }
+  .nav-arrow:hover{ border-color: var(--holo-pink); color: var(--holo-pink); }
+  .nav-prev{ left: -64px; }
+  .nav-next{ right: -64px; }
+
+  @media (max-width: 760px){
+    .nav-prev{ left: -8px; }
+    .nav-next{ right: -8px; }
+    .nav-arrow{ width:38px; height:38px; }
+  }
+
+  /* keyboard-focus visibility (a11y) */
+  .card:focus-visible, .icon-btn:focus-visible, .nav-arrow:focus-visible{
+    outline: 2px solid var(--holo-cyan);
+    outline-offset: 2px;
+  }
+
+  /* reduced motion respect */
+  @media (prefers-reduced-motion: reduce){
+    .foil-strip{ animation: none; }
+    .card{ transition: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="foil-strip"></div>
+
+  <header>
+    <div class="titleblock">
+      <p class="eyebrow">Local Inventory Database</p>
+      <h1>Product Gallery</h1>
+    </div>
+    <div class="counter">SHOWING <b id="countLabel">000</b> ITEMS</div>
+  </header>
+
+  <div class="mode-row">
+    <button class="mode-btn active" data-mode="main">MAIN</button>
+    <button class="mode-btn" data-mode="holo">HOLO</button>
+  </div>
+
+  <main>
+    <div class="gallery" id="gallery"></div>
+  </main>
+
+  <div class="modal" id="modal" aria-hidden="true">
+    <div class="modal-stage" id="modalStage">
+      <span class="modal-tag" id="modalTag"></span>
+      <div class="modal-controls">
+        <button class="icon-btn" id="closeBtn" aria-label="Close">✕</button>
+      </div>
+      <div class="card" id="modalCard" tabindex="0">
+        <img id="modalImg" src="" alt="" />
+        <div class="holo-glare"></div>
+        <div class="holo-shine"></div>
+      </div>
+      <button class="nav-arrow nav-prev" id="prevBtn" aria-label="Previous">‹</button>
+      <button class="nav-arrow nav-next" id="nextBtn" aria-label="Next">›</button>
+    </div>
+  </div>
+
+<script>
+  /* ============================================================
+     PRODUCTS — this is the only part you ever need to touch.
+     Add a new product by pasting ONE new line above the closing
+     bracket. Local file paths, subfolders, or full URLs all work.
+     Handles up to 100+ rows fine — the grid, numbering, and modal
+     nav all rebuild themselves automatically from this array.
+  ============================================================ */
+  const PRODUCTS = [
+    "images/BGshow0624.png",
+    "images/Cyberpunk Assassin.png",
+    "images/Mandolorian Scubadiver.png",
+    "images/The Real Vampirella.png",
+    "images/Labyrinth of Labors.png",
+    "images/Rick and Morty.png",
+    "images/Mega Raichu Ex.png",
+	"images/Dance Anime.png",
+	"images/Goth Angel Shackled.png",
+	"images/gothFetLifeLibrary.png",
+    "images/Lightbox Pokemon B.png",
+	"images/stream_minis1.png",
+    "images/stream_minis2.png",
+	"images/stream_lightboxes1.png",
+	"images/stream_lightboxes2.png",
+	"images/POKE3.png",
+	"images/POKE4.png",
+	"images/POKE5.png",
+	"images/POKE6.png",
+	"images/POKE7.png",
+	"images/POKE8.png",
+	"images/POKE1.png",
+	"images/POKE2.png",
+	"images/NARU.png",
+	"images/SAIL1.png",
+	"images/SAIL2.png",
+	"images/GUNDAM.png",
+	"images/GUNDAM2.png",
+	"images/BEBOP.png",
+	"images/BEBOP2.png",
+	"images/one piece.png",
+	"images/ONEPIE2.png",
+	"images/DBZ1.png",
+	"images/scroogeB.png",
+	"images/HARVDENT.png",
+	"images/CyberCatMiror.png",
+	"images/POKE30pikachuNishiNite.png",
+	"images/UmbreonNite.png",
+	"images/UmbreonDay.png",
+	"images/POKE30pikachuNishiDay.png",
+	"images/card_raichu.png",
+	"images/card_vampirella.png",
+	"images/card_labyrinth.png",
+		
+	
+	
+    // ⬆ add new products above this line ⬆
+  ];
+
+  /* ============================================================
+     RENDER GALLERY
+  ============================================================ */
+  const galleryEl = document.getElementById('gallery');
+  const countLabel = document.getElementById('countLabel');
+  const total = PRODUCTS.length;
+  const padWidth = Math.max(3, String(total).length);
+
+  countLabel.textContent = String(total).padStart(padWidth, '0');
+
+  function tagText(i){
+    return String(i + 1).padStart(padWidth, '0') + ' / ' + String(total).padStart(padWidth, '0');
+  }
+
+  PRODUCTS.forEach((src, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', 'Open product ' + (i + 1) + ' of ' + total);
+
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = 'Product ' + (i + 1);
+    img.loading = 'lazy';
+    img.onerror = () => {
+      img.remove();
+      const ph = document.createElement('div');
+      ph.className = 'placeholder';
+      ph.innerHTML = 'NO IMAGE<br>' + src;
+      card.prepend(ph);
+    };
+
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.textContent = tagText(i);
+
+    card.append(img);
+    slot.append(card, tag);
+    galleryEl.appendChild(slot);
+
+    // grid preview cards are intentionally plain — no tilt/shine here,
+    // that only happens once a card is opened in the modal (see below)
+    card.addEventListener('click', () => openModal(i));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(i); }
+    });
+  });
+
+  /* ============================================================
+     HOLO POINTER EFFECT
+     Pure pointer-driven — no ambient animation loop. Card sits
+     dead still until the pointer moves over it, then eases back
+     to flat on pointerleave. Bounding rect is measured fresh on
+     every move, so this stays correct across window resizes.
+  ============================================================ */
+  function initHoloCard(cardEl){
+    function handleMove(e){
+      const rect = cardEl.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
+      const clientX = e.clientX ?? (e.touches && e.touches[0] && e.touches[0].clientX);
+      const clientY = e.clientY ?? (e.touches && e.touches[0] && e.touches[0].clientY);
+      if (clientX == null || clientY == null) return;
+
+      let x = (clientX - rect.left) / rect.width;
+      let y = (clientY - rect.top) / rect.height;
+      x = Math.min(Math.max(x, 0), 1);
+      y = Math.min(Math.max(y, 0), 1);
+
+      const cx = x - 0.5;
+      const cy = y - 0.5;
+      const hyp = Math.min(Math.sqrt(cx * cx + cy * cy) / 0.5, 1);
+
+      const rx = (cy * -12).toFixed(2) + 'deg';
+      const ry = (cx * 12).toFixed(2) + 'deg';
+
+      cardEl.classList.remove('is-resting');
+      cardEl.style.setProperty('--mx', (x * 100).toFixed(2) + '%');
+      cardEl.style.setProperty('--my', (y * 100).toFixed(2) + '%');
+      cardEl.style.setProperty('--posx', (x * 100).toFixed(2) + '%');
+      cardEl.style.setProperty('--posy', (y * 100).toFixed(2) + '%');
+      cardEl.style.setProperty('--hyp', hyp.toFixed(3));
+      cardEl.style.setProperty('--rx', rx);
+      cardEl.style.setProperty('--ry', ry);
+    }
+
+    function handleLeave(){
+      cardEl.classList.add('is-resting');
+      cardEl.style.setProperty('--rx', '0deg');
+      cardEl.style.setProperty('--ry', '0deg');
+      cardEl.style.setProperty('--hyp', '0');
+      cardEl.style.setProperty('--posx', '50%');
+      cardEl.style.setProperty('--posy', '50%');
+      cardEl.style.setProperty('--mx', '50%');
+      cardEl.style.setProperty('--my', '50%');
+    }
+
+    cardEl.addEventListener('pointermove', handleMove);
+    cardEl.addEventListener('pointerleave', handleLeave);
+    cardEl.addEventListener('pointercancel', handleLeave);
+    // keyboard users still get a resting card — no pointer position to fake
+    cardEl.addEventListener('blur', handleLeave);
+  }
+
+  /* ============================================================
+     MODAL / CLOSEUP VIEWER
+  ============================================================ */
+  const modal      = document.getElementById('modal');
+  const modalImg    = document.getElementById('modalImg');
+  const modalCard   = document.getElementById('modalCard');
+  const modalTag    = document.getElementById('modalTag');
+  const closeBtn    = document.getElementById('closeBtn');
+  const prevBtn     = document.getElementById('prevBtn');
+  const nextBtn     = document.getElementById('nextBtn');
+
+  let currentIndex = 0;
+  let lastFocused = null;
+
+  /* MAIN = tilt + glare only. HOLO = tilt + glare + rainbow shine.
+     Toggling either updates the modal card immediately, even mid-view. */
+  let mode = 'main';
+  const modeButtons = document.querySelectorAll('.mode-btn');
+  function setMode(next){
+    mode = next;
+    modeButtons.forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    modalCard.classList.toggle('holo', mode === 'holo');
+  }
+  modeButtons.forEach(btn => {
+    btn.addEventListener('click', () => setMode(btn.dataset.mode));
+  });
+
+  function openModal(i){
+    currentIndex = ((i % total) + total) % total;
+    modalImg.src = PRODUCTS[currentIndex];
+    modalImg.alt = 'Product ' + (currentIndex + 1);
+    modalTag.innerHTML = 'ITEM <b>' + tagText(currentIndex) + '</b>';
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    lastFocused = document.activeElement;
+    modalCard.classList.add('is-resting');
+    modalCard.classList.toggle('holo', mode === 'holo');
+    closeBtn.focus();
+  }
+
+  function closeModal(){
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    if (lastFocused) lastFocused.focus();
+  }
+
+  function step(delta){
+    openModal(currentIndex + delta);
+  }
+
+  closeBtn.addEventListener('click', closeModal);
+  prevBtn.addEventListener('click', () => step(-1));
+  nextBtn.addEventListener('click', () => step(1));
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal(); // click on backdrop only
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!modal.classList.contains('open')) return;
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'ArrowLeft') step(-1);
+    if (e.key === 'ArrowRight') step(1);
+  });
+
+  initHoloCard(modalCard);
+
+  /* ============================================================
+     RESIZE SAFETY
+     Grid + modal sizing is done entirely in CSS with relative
+     units (aspect-ratio, vh/vw, auto-fill/minmax), so layout
+     reflows natively on any window/OBS-source resize with no
+     JS needed. This listener only resets an in-progress holo
+     tilt so a mid-drag resize can't leave a card stuck skewed.
+  ============================================================ */
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      modalCard.classList.add('is-resting');
+      modalCard.style.setProperty('--rx', '0deg');
+      modalCard.style.setProperty('--ry', '0deg');
+      modalCard.style.setProperty('--hyp', '0');
+    }, 120);
+  });
+</script>
+</body>
+</html>
