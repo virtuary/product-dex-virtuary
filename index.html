@@ -107,6 +107,56 @@
   .counter b{ color: var(--text); }
 
   /* ============================================================
+     AUTO-SCROLL TOGGLE — small, fixed top-right, stream-safe
+  ============================================================ */
+  .auto-scroll-btn{
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 70;
+    display:flex;
+    align-items:center;
+    gap: 6px;
+    font-family:'Orbitron', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(16,16,24,.85);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .15s ease, color .15s ease, box-shadow .2s ease;
+  }
+  .auto-scroll-btn:hover{ color: var(--text); border-color: #3a3a4a; }
+  .auto-scroll-btn .dot{
+    width: 7px; height: 7px;
+    border-radius: 999px;
+    background: var(--muted);
+    flex-shrink:0;
+  }
+  .auto-scroll-btn.active{
+    color: #fff;
+    border-color: transparent;
+    background: linear-gradient(90deg, var(--holo-pink), var(--holo-purple));
+    box-shadow: 0 0 16px rgba(255,110,199,.45);
+  }
+  .auto-scroll-btn.active .dot{
+    background: #fff;
+    animation: pulseDot 1s ease-in-out infinite;
+  }
+  @keyframes pulseDot{
+    0%, 100%{ opacity:1; transform:scale(1); }
+    50%{ opacity:.4; transform:scale(.7); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .auto-scroll-btn.active .dot{ animation: none; }
+  }
+
+  /* ============================================================
      MODE TOGGLE — MAIN / HOLO
   ============================================================ */
   .mode-row{
@@ -144,6 +194,56 @@
     border-color: transparent;
     box-shadow: 0 0 22px rgba(255,110,199,.45);
   }
+
+  /* ============================================================
+     SEARCH / FILTER
+  ============================================================ */
+  .search-row{
+    position: relative; z-index:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 10px;
+    padding: 14px clamp(16px, 4vw, 56px) 4px;
+    flex-wrap: wrap;
+  }
+  .search-box{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    width: min(340px, 100%);
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    transition: border-color .15s ease;
+  }
+  .search-box:focus-within{ border-color: var(--holo-cyan); }
+  .search-box svg{ flex-shrink:0; opacity:.6; }
+  .search-box input{
+    flex:1;
+    min-width:0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  .search-box input::placeholder{ color: var(--muted); }
+  .search-count{
+    font-family:'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: .08em;
+    color: var(--muted);
+    white-space: nowrap;
+    min-height: 1em;
+  }
+
+  /* a slot filtered out by search simply leaves the grid flow */
+  .slot.search-hidden{ display:none; }
 
   /* ============================================================
      GALLERY GRID
@@ -302,6 +402,28 @@
     cursor: default;
   }
 
+  /* scroll-wheel zoom + middle-click drag pan, both live on the image
+     itself so they compose cleanly with the card's own tilt transform
+     instead of fighting it. translate() is listed before scale() so the
+     pan amount is in plain screen pixels, unaffected by zoom level. */
+  #modalImg{
+    --zoom: 1;
+    --panX: 0px;
+    --panY: 0px;
+    transform: translate(var(--panX), var(--panY)) scale(var(--zoom));
+    transition: transform .15s ease-out;
+    will-change: transform;
+  }
+  /* while actively dragging, transform must track the cursor with zero
+     lag — the transition only comes back once the mouse is released */
+  #modalImg.dragging{
+    transition: none;
+    cursor: grabbing;
+  }
+  #modalImg.zoomed{
+    cursor: grab;
+  }
+
   .modal-controls{
     position:absolute; top:-52px; right:0;
     display:flex; gap:10px;
@@ -376,9 +498,24 @@
     <div class="counter">SHOWING <b id="countLabel">000</b> ITEMS</div>
   </header>
 
+  <button class="auto-scroll-btn" id="autoScrollBtn" aria-pressed="false">
+    <span class="dot"></span>
+    <span id="autoScrollLabel">AUTO</span>
+  </button>
+
   <div class="mode-row">
     <button class="mode-btn active" data-mode="main">MAIN</button>
     <button class="mode-btn" data-mode="holo">HOLO</button>
+  </div>
+
+  <div class="search-row">
+    <div class="search-box">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search inventory..." autocomplete="off" />
+    </div>
+    <span class="search-count" id="searchCount"></span>
   </div>
 
   <main>
@@ -410,28 +547,100 @@
      nav all rebuild themselves automatically from this array.
   ============================================================ */
   const PRODUCTS = [
+    "images/_newLOGOminiArtorama9-16.png",
+    "images/Gozer the Traveler.png",
+    "images/The Real Vampirella.png",
+	"images/Cyberpunk Assassin.png",
+	"images/BikerCyberpunk.png",
+    "images/Mandolorian Scubadiver.png",
+    "images/Labyrinth of Labors.png",
+    "images/Rick and Morty.png",
+    "images/Mega Raichu Ex.png",
+    "images/51-pokemonA.png",
+	"images/Lightbox Pokemon B.png",
+	"images/MARIObros StarNFT_CopyrightHando2022.png",
+    "images/Goth Angel Shackled.png",
+    "images/gothFetLifeLibrary.png",
+	"images/Don_macMiller.png",	
+	"images/charmanderKC.png",
+	"images/pikiachuTinyArt.png",
+	"images/Gengar.png",
+	"images/mewKC.png",
+	"images/BabyMew.png",
+	"images/MewTwo2.png",
+	"images/Mimikyu3.png",
+	"images/MimikyuPikaZipper.png",
+	"images/mimikyu.png",
+	"images/Batman Who Laughs.png",
+	"images/Skeletor1.png",
+	"images/Spiderman2.png",
+	"images/edward_scissorhands.png",
+	"images/AkiraExplosion.png",
+	"images/Godzilla.png",
+	"images/deadpool_aceo.png",
+	"images/wolverine1.png",
+	"images/joker_aceo.png",
+	"images/ditto_aceo.png",
+	"images/Jolteon2.png",
+	"images/snorlax.png",
+	"images/nine_tails.png",
+	"images/EspeonEx.png",
+	"images/Meganium.png",
+	"images/lilSlash_aceo.png",
+	"images/Superman.png",
+	"images/superman2.png",
+	"images/MikeMikeIslandBoy.png",
+	"images/Flareon2.png",
+	"images/Charmander.png",
+	"images/Charizard1.png",
+	"images/Charizard2.png",
+	"images/morty_aceo.png",
+	"images/Orko.png",
+	"images/mondo_aceo.png",
+	"images/snoopy_aceo.png",
+	"images/Miku.png",
+	"images/FreddyKrieger.png",
+	"images/FreddyK2.png",
+	"images/JackSkellington4b.png",
+	"images/Jack Nightmare Before Christmas.png",
+	"images/Jack Pumpkin King BW.png",
+	"images/Jack Pumpkin King.png",
+	"images/batman.png",	
+	"images/tmnt.png",
+	"images/Samson2.png",
+	"images/Samson1.png",
+	"images/TheThingV1b.png",
+	"images/TheFly.png",
+	"images/MrMimeGoosebumps.png",
+	"images/Beetlejuice NFT.png",
+	"images/stream_minis1.png",
+    "images/stream_minis2.png",
+    "images/stream_lightboxes1.png",
+    "images/stream_lightboxes2.png",
     "images/POKE3.png",
-	"images/POKE4.png",
-	"images/POKE5.png",
-	"images/POKE6.png",
-	"images/POKE7.png",
-	"images/POKE8.png",
-	"images/POKE1.png",
-	"images/POKE2.png",
-	"images/NARU.png",
-	"images/SAIL1.png",
-	"images/SAIL2.png",
-	"images/GUNDAM.png",
-	"images/GUNDAM2.png",
-	"images/BEBOP.png",
-	"images/BEBOP2.png",
-	"images/one piece.png",
-	"images/ONEPIE2.png",
-	"images/DBZ1.png",
-	"images/scroogeB.png",
-	"images/HARVDENT.png",
-		
-	
+    "images/POKE4.png",
+    "images/POKE5.png",
+    "images/POKE6.png",
+    "images/POKE7.png",
+    "images/POKE8.png",
+    "images/POKE1.png",
+    "images/POKE2.png",
+    "images/NARU.png",
+    "images/SAIL1.png",
+    "images/SAIL2.png",
+    "images/GUNDAM.png",
+    "images/GUNDAM2.png",
+    "images/BEBOP.png",
+    "images/BEBOP2.png",
+    "images/one piece.png",
+    "images/ONEPIE2.png",
+    "images/DBZ1.png",
+    "images/scroogeB.png",
+    "images/HARVDENT.png",
+    "images/CyberCatMiror.png",
+    "images/POKE30pikachuNishiNite.png",
+    "images/UmbreonNite.png",
+    "images/UmbreonDay.png",
     // ⬆ add new products above this line ⬆
   ];
 
@@ -449,9 +658,17 @@
     return String(i + 1).padStart(padWidth, '0') + ' / ' + String(total).padStart(padWidth, '0');
   }
 
+  // "images/Cyberpunk Assassin.png" -> "cyberpunk assassin"
+  // used only for search matching, never shown on the card itself
+  function labelFromPath(path){
+    const filename = path.split('/').pop().replace(/\.[a-zA-Z0-9]+$/, '');
+    return filename.replace(/[_-]+/g, ' ').trim().toLowerCase();
+  }
+
   PRODUCTS.forEach((src, i) => {
     const slot = document.createElement('div');
     slot.className = 'slot';
+    slot.dataset.searchLabel = labelFromPath(src);
 
     const card = document.createElement('div');
     card.className = 'card';
@@ -485,6 +702,34 @@
     card.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(i); }
     });
+  });
+
+  /* ============================================================
+     SEARCH / FILTER
+     Matches against the filename-derived label stored on each
+     slot (see labelFromPath above). Purely a show/hide filter —
+     doesn't touch the modal's index or the array itself.
+  ============================================================ */
+  const searchInput = document.getElementById('searchInput');
+  const searchCount  = document.getElementById('searchCount');
+  const allSlots = Array.from(galleryEl.children);
+
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.trim().toLowerCase();
+
+    if (!query){
+      allSlots.forEach(s => s.classList.remove('search-hidden'));
+      searchCount.textContent = '';
+      return;
+    }
+
+    let matches = 0;
+    allSlots.forEach(s => {
+      const isMatch = s.dataset.searchLabel.includes(query);
+      s.classList.toggle('search-hidden', !isMatch);
+      if (isMatch) matches++;
+    });
+    searchCount.textContent = matches + ' / ' + total + ' MATCH' + (matches === 1 ? '' : 'ES');
   });
 
   /* ============================================================
@@ -547,6 +792,7 @@
      MODAL / CLOSEUP VIEWER
   ============================================================ */
   const modal      = document.getElementById('modal');
+  const modalStage  = document.getElementById('modalStage');
   const modalImg    = document.getElementById('modalImg');
   const modalCard   = document.getElementById('modalCard');
   const modalTag    = document.getElementById('modalTag');
@@ -581,7 +827,13 @@
     lastFocused = document.activeElement;
     modalCard.classList.add('is-resting');
     modalCard.classList.toggle('holo', mode === 'holo');
+    resetZoom();
     closeBtn.focus();
+
+    // auto-scroll would fight the modal's own scroll lock — pause it,
+    // and remember whether to turn it back on when the modal closes
+    wasActiveBeforeModal = autoScrollActive;
+    if (autoScrollActive) stopAutoScroll();
   }
 
   function closeModal(){
@@ -589,7 +841,95 @@
     modal.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
     if (lastFocused) lastFocused.focus();
+    resetZoom();
+
+    if (wasActiveBeforeModal) startAutoScroll();
   }
+
+  /* ============================================================
+     CLOSEUP ZOOM + PAN
+     Scroll wheel zooms in/out. While zoomed, hold the middle mouse
+     button (scroll-wheel click) to grab and drag the image around.
+     Panning is clamped so you can never drag the image edge inside
+     the frame — and because the clamp bounds are derived directly
+     from the zoom level, panning automatically shrinks back to
+     dead-center as you zoom out, landing exactly at 0,0 by the
+     time you're back to 1x. No special-case "snap back" needed.
+  ============================================================ */
+  const ZOOM_MIN  = 1;
+  const ZOOM_MAX  = 3.5;
+  const ZOOM_STEP = 0.12; // how much each wheel notch zooms — raise for snappier zoom
+
+  let zoomLevel = 1;
+  let panX = 0;
+  let panY = 0;
+  let isPanning = false;
+  let panStart = { x: 0, y: 0, panX: 0, panY: 0 };
+
+  // how far the image can be dragged before its edge would show —
+  // exactly half the "extra" size the zoom has added, per axis
+  function getPanBounds(){
+    const rect = modalStage.getBoundingClientRect();
+    return {
+      maxX: (rect.width  * (zoomLevel - 1)) / 2,
+      maxY: (rect.height * (zoomLevel - 1)) / 2
+    };
+  }
+
+  function clampPan(){
+    const { maxX, maxY } = getPanBounds();
+    panX = Math.min(maxX, Math.max(-maxX, panX));
+    panY = Math.min(maxY, Math.max(-maxY, panY));
+  }
+
+  function applyZoom(){
+    clampPan(); // re-clamping here is what pulls pan back to 0 as zoom shrinks
+    modalImg.style.setProperty('--zoom', zoomLevel.toFixed(2));
+    modalImg.style.setProperty('--panX', panX.toFixed(1) + 'px');
+    modalImg.style.setProperty('--panY', panY.toFixed(1) + 'px');
+    modalImg.classList.toggle('zoomed', zoomLevel > 1);
+  }
+
+  function resetZoom(){
+    zoomLevel = 1;
+    panX = 0;
+    panY = 0;
+    applyZoom();
+  }
+
+  modalStage.addEventListener('wheel', (e) => {
+    if (!modal.classList.contains('open')) return;
+    e.preventDefault(); // stop the page from scrolling behind the modal
+    const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+    zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomLevel + delta));
+    applyZoom();
+  }, { passive: false });
+
+  // middle mouse button (button === 1) grabs and drags the image
+  modalCard.addEventListener('mousedown', (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault(); // stop the browser's native middle-click autoscroll
+    isPanning = true;
+    panStart = { x: e.clientX, y: e.clientY, panX, panY };
+    modalImg.classList.add('dragging');
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    panX = panStart.panX + (e.clientX - panStart.x);
+    panY = panStart.panY + (e.clientY - panStart.y);
+    clampPan();
+    modalImg.style.setProperty('--panX', panX.toFixed(1) + 'px');
+    modalImg.style.setProperty('--panY', panY.toFixed(1) + 'px');
+  });
+
+  function endPan(){
+    if (!isPanning) return;
+    isPanning = false;
+    modalImg.classList.remove('dragging');
+  }
+  window.addEventListener('mouseup', endPan);
+  window.addEventListener('blur', endPan);
 
   function step(delta){
     openModal(currentIndex + delta);
@@ -620,6 +960,77 @@
      JS needed. This listener only resets an in-progress holo
      tilt so a mid-drag resize can't leave a card stuck skewed.
   ============================================================ */
+  /* ============================================================
+     AUTO-SCROLL
+     Toggle button (top-right) slowly scrolls the whole page down,
+     bounces back up at the bottom, and repeats — for hands-off
+     "walk away" stream moments. Runs via requestAnimationFrame,
+     timed off the actual elapsed time between frames, so the
+     speed stays consistent no matter the screen's refresh rate.
+
+     ⚙ TO CHANGE SPEED: edit AUTO_SCROLL_SPEED below.
+        It's in pixels-per-second. Bigger number = faster scroll.
+        Try 15–25 for very slow/ambient, 40–60 for a brisker pace.
+  ============================================================ */
+  const AUTO_SCROLL_SPEED = 45; // px/second — ← edit this to change scroll speed
+
+  const autoScrollBtn   = document.getElementById('autoScrollBtn');
+  const autoScrollLabel = document.getElementById('autoScrollLabel');
+
+  let autoScrollActive   = false;
+  let autoScrollDir      = 1;   // 1 = scrolling down, -1 = scrolling up
+  let autoScrollRafId    = null;
+  let autoScrollLastTime = null;
+  let wasActiveBeforeModal = false;
+
+  function maxScrollY(){
+    return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  }
+
+  function autoScrollStep(timestamp){
+    if (!autoScrollActive) return;
+
+    if (autoScrollLastTime === null) autoScrollLastTime = timestamp;
+    const deltaSeconds = (timestamp - autoScrollLastTime) / 1000;
+    autoScrollLastTime = timestamp;
+
+    const max = maxScrollY();
+    let next = window.scrollY + autoScrollDir * AUTO_SCROLL_SPEED * deltaSeconds;
+
+    if (next >= max){
+      next = max;
+      autoScrollDir = -1;       // hit the bottom row — reverse upward
+    } else if (next <= 0){
+      next = 0;
+      autoScrollDir = 1;        // hit the top — reverse downward
+    }
+
+    window.scrollTo(0, next);
+    autoScrollRafId = requestAnimationFrame(autoScrollStep);
+  }
+
+  function startAutoScroll(){
+    if (autoScrollActive) return;
+    autoScrollActive = true;
+    autoScrollLastTime = null;
+    autoScrollBtn.classList.add('active');
+    autoScrollBtn.setAttribute('aria-pressed', 'true');
+    autoScrollLabel.textContent = 'AUTO';
+    autoScrollRafId = requestAnimationFrame(autoScrollStep);
+  }
+
+  function stopAutoScroll(){
+    autoScrollActive = false;
+    autoScrollBtn.classList.remove('active');
+    autoScrollBtn.setAttribute('aria-pressed', 'false');
+    if (autoScrollRafId) cancelAnimationFrame(autoScrollRafId);
+  }
+
+  autoScrollBtn.addEventListener('click', () => {
+    if (autoScrollActive) stopAutoScroll();
+    else startAutoScroll();
+  });
+
   let resizeTimer;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
